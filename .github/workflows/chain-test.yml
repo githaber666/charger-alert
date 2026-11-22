@@ -1,0 +1,20 @@
+name: chain-test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - name: dispatch next run (max 3)
+        if: github.run_number < 3
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method POST "repos/${{ github.repository }}/actions/workflows/chain-test.yml/dispatches" -f ref=master
+          echo "dispatched from run ${{ github.run_number }}"
+      - run: echo "run ${{ github.run_number }} complete"
