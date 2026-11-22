@@ -1,6 +1,6 @@
 name: smoke-test
 
-# 只读的连通性自检：跑一次 --dry，只打印不推送。
+# 只读的连通性自检：打印有效配置 + 跑一次 --dry，只打印不推送。
 # 用来确认 Secret 填对了、openid 有效、接口通。手动触发即可。
 on:
   workflow_dispatch:
@@ -21,9 +21,25 @@ jobs:
 
       - run: pip install --quiet requests
 
+      - name: 打印有效配置（不含密钥）
+        env:
+          SEMIOT_OPENID: ${{ secrets.SEMIOT_OPENID }}
+          PUSH_CHANNEL: ${{ secrets.PUSH_CHANNEL }}
+          PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
+          NOTIFY_START: ${{ vars.NOTIFY_START }}
+        run: |
+          python -u -c "
+          import json, monitor
+          c = monitor.load_cfg()
+          print('openid 已配置:', bool(c['openid']), '| 长度', len(c['openid']))
+          print('推送通道:', c['push']['channel'], '| token 已配置:', bool(c['push']['token']))
+          print('开始充电提醒:', c['notify_start'], '| 容差', c['early_tolerance_min'], '分钟 | 缺记录等待', c['missing_wait_min'], '分钟')
+          "
+
       - name: 只读自检
         env:
           SEMIOT_OPENID: ${{ secrets.SEMIOT_OPENID }}
           PUSH_CHANNEL: ${{ secrets.PUSH_CHANNEL }}
           PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
+          NOTIFY_START: ${{ vars.NOTIFY_START }}
         run: python -u monitor.py --once --dry

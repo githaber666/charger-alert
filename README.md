@@ -42,6 +42,8 @@ PUSH_CHANNEL=serverchan PUSH_TOKEN=<SendKey> python monitor.py --test-push
 | `ntfy` | 自建 topic 名 | ntfy App 通知，免注册 |
 | `bark` | Bark key | iPhone Bark App |
 
+省推送额度：把仓库变量 `NOTIFY_START` 设为 `false`（Settings > Secrets and variables > Actions > Variables），就只推结束提醒，一次充电只占 1 条。
+
 ## 运行方式
 
 `.github/workflows/monitor.yml`：单次运行执行 `monitor.py --loop 300 --minutes 320`，每 5 分钟查一次、最长跑 5 小时 20 分；每轮结束前用 `GITHUB_TOKEN`（需 `actions: write`）自触发下一轮，形成连续轮询。`state.json` 走 Actions 缓存跨轮传递，同一订单不重复提醒。

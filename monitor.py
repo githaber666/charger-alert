@@ -40,7 +40,7 @@ DEFAULT_CFG = {
 def load_cfg():
     cfg = dict(DEFAULT_CFG)
     if os.path.exists(CFG_FILE):
-        with open(CFG_FILE, encoding="utf-8") as f:
+        with open(CFG_FILE, encoding="utf-8-sig") as f:
             cfg.update(json.load(f))
     if os.environ.get("SEMIOT_OPENID"):
         cfg["openid"] = os.environ["SEMIOT_OPENID"]
@@ -48,13 +48,16 @@ def load_cfg():
         cfg["push"]["channel"] = os.environ["PUSH_CHANNEL"]
     if os.environ.get("PUSH_TOKEN"):
         cfg["push"]["token"] = os.environ["PUSH_TOKEN"]
+    if os.environ.get("NOTIFY_START"):
+        # 关掉"开始充电"那条提醒，只在结束时推送，省推送额度
+        cfg["notify_start"] = os.environ["NOTIFY_START"].strip().lower() in ("1", "true", "yes", "on")
     return cfg
 
 
 def load_state():
     if os.path.exists(STATE_FILE):
         try:
-            with open(STATE_FILE, encoding="utf-8") as f:
+            with open(STATE_FILE, encoding="utf-8-sig") as f:
                 return json.load(f)
         except Exception:
             pass
