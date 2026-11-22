@@ -201,19 +201,28 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--loop", type=int, default=0, help="秒；本机常驻轮询间隔")
+    ap.add_argument("--minutes", type=float, default=0,
+                    help="配合 --loop：最多跑这么多分钟就退出（GitHub Actions 续链用）")
     ap.add_argument("--dry", action="store_true")
     a = ap.parse_args()
 
     cfg = load_cfg()
     st = load_state()
     if a.loop:
+        deadline = time.time() + a.minutes * 60 if a.minutes else None
         while True:
             try:
                 check(cfg, st, a.dry)
                 save_state(st)
             except Exception as e:
                 print("本轮出错:", type(e).__name__, e)
-            time.sleep(a.loop)
+            if deadline and time.time() >= deadline:
+                print("已到本轮运行时长上限，退出等待下一次接续。")
+                break
+            sleep_s = a.loop
+            if deadline:
+                sleep_s = max(5, min(sleep_s, deadline - time.time()))
+            time.sleep(sleep_s)
     else:
         check(cfg, st, a.dry)
         save_state(st)

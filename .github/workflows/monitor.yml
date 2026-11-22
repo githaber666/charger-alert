@@ -1,14 +1,19 @@
 name: charger-alert
 
+# 触发方式：
+#  - push / workflow_dispatch：提交或手动触发
+#  - schedule：备用定时器（GitHub 的 cron 在本仓库长期未触发，留作保险）
+#  - 自触发续链：每轮结束前用 GITHUB_TOKEN 触发下一次，等价于 7x24 轮询
 on:
   schedule:
-    - cron: "*/5 * * * *"   # 每 5 分钟检查一次
+    - cron: "*/30 * * * *"
   push:
     branches: [master]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: charger-alert
@@ -17,7 +22,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -35,16 +40,30 @@ jobs:
           restore-keys: |
             state-
 
-      - name: 检查订单
+      - name: 轮询（每 5 分钟一次，最长约 5 小时 20 分）
+        id: poll
         env:
           SEMIOT_OPENID: ${{ secrets.SEMIOT_OPENID }}
           PUSH_CHANNEL: ${{ secrets.PUSH_CHANNEL }}
           PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
-        run: python monitor.py --once
+        run: python -u monitor.py --loop 10 --minutes 1
 
       - name: 保存监控状态
         if: always()
+        continue-on-error: true
         uses: actions/cache/save@v4
         with:
           path: state.json
           key: state-${{ github.run_id }}
+
+      - name: 接续下一轮
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ steps.poll.outcome }}" = "failure" ]; then
+            echo "本轮轮询报错，先等 4 分钟再续链，避免空转"
+            sleep 240
+          fi
+          gh api --method POST "repos/${{ github.repository }}/actions/workflows/monitor.yml/dispatches" -f ref=master
+          echo "已触发下一轮"
