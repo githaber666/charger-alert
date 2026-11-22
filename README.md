@@ -48,6 +48,8 @@ PUSH_CHANNEL=serverchan PUSH_TOKEN=<SendKey> python monitor.py --test-push
 
 `schedule` 触发器保留作备用。部分仓库的 cron 长期不触发，所以主力是自续链。
 
+`.github/workflows/smoke.yml` 是手动自检：只跑一次 `--dry`，不推送，用来确认 Secret 填对、openid 有效、接口通。
+
 **暂停**：`gh workflow disable charger-alert --repo <your-name>/charger-alert`（当前这轮跑完就停）。
 
 ## 本地手跑

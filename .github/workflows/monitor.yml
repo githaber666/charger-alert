@@ -7,8 +7,6 @@ name: charger-alert
 on:
   schedule:
     - cron: "*/30 * * * *"
-  push:
-    branches: [master]
   workflow_dispatch:
 
 permissions:
