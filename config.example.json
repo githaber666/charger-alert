@@ -1,0 +1,10 @@
+{
+  "openid": "<YOUR_OPENID>",
+  "push": {
+    "channel": "serverchan",
+    "token": "<YOUR_SENDKEY>"
+  },
+  "notify_start": true,
+  "early_tolerance_min": 5,
+  "missing_wait_min": 15
+}

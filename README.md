@@ -1,11 +1,12 @@
-# 充电结束 / 被拔 提醒
+# charger-alert
 
-电瓶车在公共扫码充电桩上充电，**没充满就被拔掉/断电**时，给你推一条提醒。
+电瓶车在公共扫码桩上充电，最怕没充满就被人拔掉。这个工具每 5 分钟读一次**你自己**的充电订单，订单结束时对比"实际充了多久"和"本该充多久"，把结论推到微信。
 
-数据来源：威胜「智能充电平台」`semiot.wasion.cn` 的订单接口，靠你的 openid 识别"我的单"，
-不需要抓包、不需要登录态、不会过期。
+数据来自威胜「智能充电平台」（`semiot.wasion.cn`）的订单接口，用你自己的 `openid` 识别"我的单"。不需要抓包换取登录态、不需要服务器长期在线，整套东西跑在 GitHub Actions 上。
 
-## 判定逻辑
+完整步骤见 **[docs/使用手册.md](docs/使用手册.md)**。这里只放最短路径。
+
+## 判断逻辑
 
 | 平台字段 | 含义 |
 | --- | --- |
@@ -13,79 +14,49 @@
 | `GetHisOrders` 的 `UseTimes` | 已结束订单的实际使用分钟 |
 | `GetHisOrders` 的 `CostElectricit` | 充入度数 |
 
-计划时长 = 最后一次看到该订单时的「已过分钟 + 剩余分钟」。
-结束时 `UseTimes` 明显小于计划时长（容差 5 分钟）→ ⚡ 提前断电（基本就是被拔了或充满停机）；
-否则 → ✅ 时间用满，正常结束。
+计划时长 = 最后一次看到该订单时的「已过分钟 + 剩余分钟」。结束后若 `UseTimes` 比计划少 5 分钟以上 → ⚡ 提前断电（基本就是被拔）；否则 ✅ 时间用满。
 
-订单从「进行中」消失但平台历史表还没更新时，等 15 分钟；仍查不到就按最后观测的剩余时间判定，
-避免漏报。
+订单从「进行中」消失但平台历史表还没更新时，等 15 分钟；仍查不到就按最后观测的剩余时间判定，避免漏报。
 
-## 实际跑通的证据
-
-```
-[push:ntfy] ⚡ 充电提前结束（可能被拔） 120000000012
-设备 120000000012 / 开始 2026-11-22 14:41:17
-实际使用 2小时15分，计划 10小时40分
-⚠️ 少用了约 8小时24分，电没充满就被断电了
-充入 0.39 度
-推送结果 200: {"id":"iEXFPfq6L38X", ...}
-```
-
-## 运行方式（GitHub Actions，机器不用开机）
-
-`.github/workflows/monitor.yml`：
-
-- 每 5 分钟轮询一次，单次运行最长 5 小时 20 分（320 分钟）；
-- 每轮结束前用 `GITHUB_TOKEN`（`actions: write`）**自触发下一轮**，形成 7×24 的连续轮询
-  （本仓库的 `schedule` cron 长期不触发，所以用自续链兜住；`schedule` 仍保留作备用触发器）；
-- 监控状态 `state.json` 通过 Actions 缓存跨轮次传递，同一订单不会重复提醒；
-- 轮询步骤报错时先等 4 分钟再续链，避免空转。
-
-**停止**：
+## 最短上手
 
 ```bash
-gh workflow disable charger-alert --repo githaber666/charger-alert
+git clone https://github.com/<your-name>/charger-alert.git
+cd charger-alert
+pip install requests
+cp config.example.json config.json     # 填入你的 openid
+python monitor.py --once --dry
+PUSH_CHANNEL=serverchan PUSH_TOKEN=<SendKey> python monitor.py --test-push
 ```
 
-（重新开启用 `gh workflow enable ...`；被停用后当前这一轮跑完就不再续接。）
+`openid` 的取法、推送通道的选择、GitHub Secrets 的填法，全部在[使用手册](docs/使用手册.md)里。
 
-## 收提醒
+## 推送通道
 
-推送通道由 Secrets 决定，换通道不用改代码：
+由 `PUSH_CHANNEL` 与 `PUSH_TOKEN` 决定，换通道不用改代码。
 
-```bash
-gh secret set PUSH_CHANNEL --repo githaber666/charger-alert --body serverchan
-gh secret set PUSH_TOKEN   --repo githaber666/charger-alert --body "SCTxxxxxx"
-```
-
-| `PUSH_CHANNEL` | `PUSH_TOKEN` | 到哪 |
+| `PUSH_CHANNEL` | `PUSH_TOKEN` | 送到哪 |
 | --- | --- | --- |
-| `ntfy` | topic 名 | 手机装 ntfy App 订阅该 topic（免注册，备用） |
-| `serverchan` | Server酱 SendKey | 微信服务号「方糖」推送（sct.ftqq.com 扫码拿 key）**← 当前使用** |
-| `pushplus` | PushPlus token | 微信推送（pushplus.plus 扫码拿 token） |
+| `serverchan` | Server酱 SendKey | 微信服务号「方糖」（sct.ftqq.com 扫码取 key） |
+| `pushplus` | PushPlus token | 微信（pushplus.plus 扫码取 token） |
+| `ntfy` | 自建 topic 名 | ntfy App 通知，免注册 |
 | `bark` | Bark key | iPhone Bark App |
 
-`SEMIOT_OPENID` 同样是仓库 Secret，代码里不含任何个人信息。
+## 运行方式
 
-## 本地手动跑
+`.github/workflows/monitor.yml`：单次运行执行 `monitor.py --loop 300 --minutes 320`，每 5 分钟查一次、最长跑 5 小时 20 分；每轮结束前用 `GITHUB_TOKEN`（需 `actions: write`）自触发下一轮，形成连续轮询。`state.json` 走 Actions 缓存跨轮传递，同一订单不重复提醒。
+
+`schedule` 触发器保留作备用。部分仓库的 cron 长期不触发，所以主力是自续链。
+
+**暂停**：`gh workflow disable charger-alert --repo <your-name>/charger-alert`（当前这轮跑完就停）。
+
+## 本地手跑
 
 ```bash
-python monitor.py --once          # 查一次
-python monitor.py --once --dry    # 只打印不推送
-python monitor.py --test-push     # 发一条测试提醒，验证推送通道
-python monitor.py --loop 300      # 本机常驻
-```
-
-`config.json`（本地用，已 gitignore）：
-
-```json
-{
-  "openid": "SEMIOT_OPENID 的值",
-  "push": {"channel": "ntfy", "token": "topic"},
-  "early_tolerance_min": 5,
-  "missing_wait_min": 15,
-  "notify_start": true
-}
+python monitor.py --once         # 查一次
+python monitor.py --once --dry   # 只打印不推送
+python monitor.py --test-push    # 发一条测试提醒
+python monitor.py --loop 300     # 本机常驻
 ```
 
 ## 接口备注
@@ -95,13 +66,19 @@ POST https://semiot.wasion.cn/PersonnelOrder/GetInOrders?start=1&end=10&openid=<
 POST https://semiot.wasion.cn/PersonnelOrder/GetHisOrders?start=1&end=10&openid=<openid>
 ```
 
-- `start` / `end` 都是 1 起、区间闭合；
-- 只要 `openid` 参数即可取自己的订单，无需 cookie / 微信授权；
-- `/PersonnelOrder/GetOrderList` 是空壳（恒返回空数组），别用。
+`start` / `end` 从 1 起、区间闭合，每页最多 10 条。只要 `openid` 参数即可读自己的订单，无需 Cookie 或微信授权。`/PersonnelOrder/GetOrderList` 是空壳（恒返回空数组），不要用。
 
 ## 已知边界
 
-- GitHub Actions 的排队时间不确定，提醒可能延后 1~10 分钟；
-- 平台历史表本身有延迟（最长十几分钟），所以加了 15 分钟的等待兜底；
-- 连续 60 天仓库无提交，GitHub 会停用 `schedule` 触发器（自续链不受影响）；
-- 公共仓库跑 Actions 不消耗额度，所以仓库保持 public，代码与配置都不含密钥。
+- GitHub 排队时间不固定，提醒可能延迟几分钟到十几分钟。
+- 平台历史表本身有延迟，所以加了 15 分钟等待兜底。
+- 公共仓库跑 Actions 不消耗额度，故建议仓库保持 public；代码里不含任何密钥。
+- 连续 60 天无提交时 GitHub 会停用 `schedule` 触发器（自续链不受影响）。
+
+## 免责
+
+仅用于读取你自己的充电订单。不要用别人的 `openid`，那等于读取他人账户数据。请求间隔请保持在分钟级。
+
+## License
+
+MIT
