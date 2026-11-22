@@ -46,7 +46,7 @@ jobs:
           SEMIOT_OPENID: ${{ secrets.SEMIOT_OPENID }}
           PUSH_CHANNEL: ${{ secrets.PUSH_CHANNEL }}
           PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
-        run: python -u monitor.py --loop 10 --minutes 1
+        run: python -u monitor.py --loop 300 --minutes 320
 
       - name: 保存监控状态
         if: always()
