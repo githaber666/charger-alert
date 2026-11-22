@@ -13,6 +13,8 @@
   python monitor.py --once --dry      只打印，不推送
 """
 import argparse
+import base64
+import hashlib
 import json
 import os
 import sys
@@ -54,11 +56,40 @@ def load_cfg():
     return cfg
 
 
+# state.json 在 GitHub Actions 里会存进 Actions 缓存（公开仓库的缓存列表可被匿名列出），
+# 里面含设备号/订单号/支付时间。因此落盘时用 openid 派生的密钥做一层混淆，
+# 缓存里只剩密文；没有 openid（未配置）时退化为明文，只影响本机调试。
+_STATE_KEY = b""
+
+
+def _set_state_key(cfg):
+    global _STATE_KEY
+    oid = (cfg or {}).get("openid") or ""
+    _STATE_KEY = hashlib.sha256(("charger-alert-state-v1|" + oid).encode()).digest() if oid else b""
+
+
+def _xor_stream(data):
+    out = bytearray(len(data))
+    i = 0
+    while i < len(data):
+        block = hashlib.sha256(_STATE_KEY + i.to_bytes(8, "big")).digest()
+        for j, b in enumerate(block):
+            if i + j >= len(data):
+                break
+            out[i + j] = data[i + j] ^ b
+        i += len(block)
+    return bytes(out)
+
+
 def load_state():
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, encoding="utf-8-sig") as f:
-                return json.load(f)
+                raw = json.load(f)
+            if isinstance(raw, dict) and "enc" in raw and _STATE_KEY:
+                blob = base64.b64decode(raw["enc"])
+                return json.loads(_xor_stream(blob).decode("utf-8"))
+            return raw  # 兼容旧的明文 state.json
         except Exception:
             pass
     return {"sessions": {}, "closed": [], "last_poll": None}
@@ -68,8 +99,13 @@ def save_state(st):
     st.setdefault("sessions", {})
     st.setdefault("closed", [])
     st["closed"] = st.get("closed", [])[-50:]
+    if _STATE_KEY:
+        blob = _xor_stream(json.dumps(st, ensure_ascii=False).encode("utf-8"))
+        payload = {"enc": base64.b64encode(blob).decode("ascii")}
+    else:
+        payload = st
     with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(st, f, ensure_ascii=False, indent=1)
+        json.dump(payload, f, ensure_ascii=False, indent=1)
 
 
 # ---------------- 推送 ----------------
@@ -211,6 +247,7 @@ def main():
     a = ap.parse_args()
 
     cfg = load_cfg()
+    _set_state_key(cfg)
     if a.test_push:
         push(cfg, "🔌 充电提醒测试",
              "推送通道配置成功。\n以后充电开始、以及没充满就被拔掉/断电时，都会推给你。", a.dry)
