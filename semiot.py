@@ -82,9 +82,9 @@ def fmt_min(m):
 
 
 if __name__ == "__main__":
-    import json, sys
+    import json, os, sys
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    oid = sys.argv[1] if len(sys.argv) > 1 else "<YOUR_OPENID>"
+    oid = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("SEMIOT_OPENID", "")
     api = Semiot(oid)
     print("== 进行中 ==")
     print(json.dumps(api.in_orders(), ensure_ascii=False, indent=1))

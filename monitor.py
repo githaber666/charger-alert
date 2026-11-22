@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 充电结束 / 被拔 微信提醒 —— 监控主程序
 
@@ -32,6 +32,7 @@ DEFAULT_CFG = {
     "push": {"channel": "ntfy", "token": ""},
     "notify_start": True,
     "early_tolerance_min": 5,
+    "missing_wait_min": 15,
 }
 
 
@@ -131,12 +132,31 @@ def check(cfg, st, dry=False):
                  f"剩余 {fmt_min(o.get('Sysc') or 0)}\n充满或结束时我会再提醒你。", dry)
 
     # 2) 检测结束的单
+    wait_min = cfg.get("missing_wait_min", 15)
     for no, rec in list(st.setdefault("sessions", {}).items()):
         if no in cur or no in st["closed"]:
+            rec.pop("missing_since", None)
             continue
         his = api.find_his(no)
         if his is None:
-            # 历史表可能延迟，先等下一轮
+            # 进行中列表里没了、历史表又还没更新：可能是历史表延迟
+            # 先记下第一次发现"消失"的时间；超过 wait_min 仍查不到就直接按剩余时间判定并发提醒
+            rec.setdefault("missing_since", now.isoformat(timespec="seconds"))
+            gone = (now - (parse_time(rec["missing_since"]) or now)).total_seconds() / 60
+            if gone < wait_min:
+                continue
+            tol0 = cfg.get("early_tolerance_min", 5)
+            left = rec.get("last_sysc") or 0
+            early0 = left > tol0
+            device0 = rec.get("device")
+            head0 = f"{'⚡ 充电提前结束（可能被拔）' if early0 else '✅ 充电结束（时间用满）'} {device0}"
+            push(cfg, head0,
+                 f"设备 {device0}\n开始 {rec.get('payment_time')}\n"
+                 f"订单已从「进行中」消失，最后观测还剩 {fmt_min(left)}"
+                 + ("\n⚠️ 还剩时间就断了，基本是被拔了" if early0 else "")
+                 + "\n（平台历史表暂未更新，按剩余时间判定）", dry)
+            st["closed"].append(no)
+            st["sessions"].pop(no, None)
             continue
         # 计划时长 = 最后一次观测时的已过分钟 + 剩余分钟
         pt = parse_time(rec.get("payment_time") or "")
@@ -144,6 +164,7 @@ def check(cfg, st, dry=False):
         plan = None
         if pt:
             plan = (ls - pt).total_seconds() / 60 + (rec.get("last_sysc") or 0)
+        rec.pop("missing_since", None)
         used = his.get("UseTimes")
         kwh = his.get("CostElectricit")
         tol = cfg.get("early_tolerance_min", 5)

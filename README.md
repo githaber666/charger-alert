@@ -22,13 +22,13 @@ openid 对同一公众号永久不变，所以整套程序零维护。
 - `semiot.py` —— 平台接口封装
 - `monitor.py` —— 轮询 + 状态机 + 推送（`--once` / `--loop 300` / `--dry`）
 - `config.json` —— 本地配置（openid、推送通道）
-- `.github/workflows/monitor.yml` —— 每 10 分钟自动跑
+- `.github/workflows/monitor.yml` —— 每 5 分钟自动跑
 
 ## 推送通道
 
 `config.json` 里 `push.channel` 可选 `ntfy` / `serverchan` / `pushplus` / `bark`：
 
-- **ntfy（当前默认，零注册）**：手机装 ntfy App → Subscribe to topic → 填 `YOUR_NTFY_TOPIC`
+- **ntfy（当前默认，零注册）**：手机装 ntfy App → Subscribe to topic → 填你自选的 topic（已存进 GitHub Secrets 的 PUSH_TOKEN）
 - **serverchan（直接进微信）**：sct.ftqq.com 微信扫码 → 复制 SendKey 填进 `token`
 - **pushplus（直接进微信）**：pushplus.plus 微信扫码 → 复制 token
 
@@ -45,11 +45,12 @@ python monitor.py --loop 300       # 本机常驻，每 5 分钟一次
    - `SEMIOT_OPENID` = 你的 openid
    - `PUSH_CHANNEL` = `ntfy`（或 `serverchan` / `pushplus` / `bark`）
    - `PUSH_TOKEN` = 对应 token / topic
-2. 仓库需私有（含个人信息），Actions 默认开启即可。
-3. 默认每 10 分钟运行；可在 `monitor.yml` 里改 `cron`。
+2. 仓库保持 **public**：公开仓库的 Actions 分钟数免费不限；私有仓库免费额度只有 2000 分钟/月，5 分钟一次会超。代码里不含任何密钥（密钥都在 Secrets）。
+3. 默认每 5 分钟运行；可在 `monitor.yml` 里改 `cron`（GitHub 最短 5 分钟，且实际有 1~10 分钟排队延迟）。
 
 ## 已知边界
 
 - GitHub 定时任务可能延迟 1~10 分钟（平台限流时更长），不是秒级实时。
 - 平台历史订单表有几十秒~1 分钟延迟，程序会自动等下一轮再确认。
 - 若某次轮询正好跨过"订单结束"，计划时长用最后观测值推算，误差在轮询间隔内。
+- 公开仓库若连续 60 天没有任何提交，GitHub 会自动停用定时任务；随便提交一次即恢复。
