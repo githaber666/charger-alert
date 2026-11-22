@@ -1,0 +1,29 @@
+name: smoke-test
+
+# 只读的连通性自检：跑一次 --dry，只打印不推送。
+# 用来确认 Secret 填对了、openid 有效、接口通。手动触发即可。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install --quiet requests
+
+      - name: 只读自检
+        env:
+          SEMIOT_OPENID: ${{ secrets.SEMIOT_OPENID }}
+          PUSH_CHANNEL: ${{ secrets.PUSH_CHANNEL }}
+          PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
+        run: python -u monitor.py --once --dry
