@@ -60,8 +60,8 @@ gh secret set PUSH_TOKEN   --repo githaber666/charger-alert --body "SCTxxxxxx"
 
 | `PUSH_CHANNEL` | `PUSH_TOKEN` | 到哪 |
 | --- | --- | --- |
-| `ntfy` | topic 名 | 手机装 ntfy App 订阅该 topic（免注册，当前默认） |
-| `serverchan` | Server酱 SendKey | 微信服务号「方糖」推送（sct.ftqq.com 扫码拿 key） |
+| `ntfy` | topic 名 | 手机装 ntfy App 订阅该 topic（免注册，备用） |
+| `serverchan` | Server酱 SendKey | 微信服务号「方糖」推送（sct.ftqq.com 扫码拿 key）**← 当前使用** |
 | `pushplus` | PushPlus token | 微信推送（pushplus.plus 扫码拿 token） |
 | `bark` | Bark key | iPhone Bark App |
 
@@ -72,6 +72,7 @@ gh secret set PUSH_TOKEN   --repo githaber666/charger-alert --body "SCTxxxxxx"
 ```bash
 python monitor.py --once          # 查一次
 python monitor.py --once --dry    # 只打印不推送
+python monitor.py --test-push     # 发一条测试提醒，验证推送通道
 python monitor.py --loop 300      # 本机常驻
 ```
 

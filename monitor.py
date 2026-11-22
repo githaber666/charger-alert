@@ -204,9 +204,14 @@ def main():
     ap.add_argument("--minutes", type=float, default=0,
                     help="配合 --loop：最多跑这么多分钟就退出（GitHub Actions 续链用）")
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--test-push", action="store_true", help="只发一条测试提醒，验证推送通道")
     a = ap.parse_args()
 
     cfg = load_cfg()
+    if a.test_push:
+        push(cfg, "🔌 充电提醒测试",
+             "推送通道配置成功。\n以后充电开始、以及没充满就被拔掉/断电时，都会推给你。", a.dry)
+        return
     st = load_state()
     if a.loop:
         deadline = time.time() + a.minutes * 60 if a.minutes else None
