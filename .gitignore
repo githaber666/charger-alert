@@ -2,3 +2,4 @@
 cookie.json
 __pycache__/
 *.pyc
+config.json

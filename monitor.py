@@ -28,7 +28,7 @@ STATE_FILE = os.path.join(HERE, "state.json")
 CFG_FILE = os.path.join(HERE, "config.json")
 
 DEFAULT_CFG = {
-    "openid": "<YOUR_OPENID>",
+    "openid": "",
     "push": {"channel": "ntfy", "token": ""},
     "notify_start": True,
     "early_tolerance_min": 5,
